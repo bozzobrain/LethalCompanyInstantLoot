@@ -13,7 +13,7 @@ namespace InstantLoot
 	{
 		private const string GUID = "InstantLoot";
 		private const string NAME = "InstantLoot";
-		private const string VERSION = "1.1.0";
+		private const string VERSION = "2.0.0";
 
 		public static InstantLoot instance;
 		private void Awake()

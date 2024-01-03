@@ -9,6 +9,7 @@ using HarmonyLib;
 using Steamworks.Ugc;
 using TMPro;
 using Unity.Netcode;
+using Unity.Netcode.Components;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UIElements;
@@ -28,6 +29,15 @@ namespace InstantLoot
 			localPlayerController = __instance;
 		}
 
+		private static void NetworkTransform(GrabbableObject obj, Vector3 placementPosition)
+		{
+
+			var weightBefore = localPlayerController.carryWeight;
+			GameObject ship = GameObject.Find("/Environment/HangarShip");
+			localPlayerController.PlaceGrabbableObject(ship.transform, placementPosition, false, obj);			
+			localPlayerController.PlaceObjectServerRpc(obj.gameObject.GetComponent<NetworkObject>(), ship.GetComponent<NetworkObject>(), placementPosition, false);
+			localPlayerController.carryWeight = weightBefore;
+		}
 		/// <summary>
 		/// Moves all loot to the ship if you are in it. 
 		/// Moves loot to the player if outside the ship.
@@ -68,13 +78,23 @@ namespace InstantLoot
 		/// Get position inside of the ship for object placement.
 		/// </summary>
 		/// <returns>Vector3 position of ship to place objects.</returns>
+		/// 
+		//private static Vector3 GetShipCenterLocationOrganize()
+		//{
+		//	GameObject ship = GameObject.Find("/Environment/HangarShip");
+		//	Vector3 shiplocation = new(ship.transform.position.x, ship.transform.position.y, ship.transform.position.z);
+		//	shiplocation.z += -5.75f;
+		//	shiplocation.x += -4.85f;
+		//	shiplocation.y += 1.66f;
+		//	return shiplocation;
+		//}
 		private static Vector3 GetShipCenterLocationOrganize()
 		{
 			GameObject ship = GameObject.Find("/Environment/HangarShip");
 			Vector3 shiplocation = new(ship.transform.position.x, ship.transform.position.y, ship.transform.position.z);
-			shiplocation.z += -5.75f;
-			shiplocation.x += -4.85f;
-			shiplocation.y += 1.66f;
+			shiplocation.z += 1.5f;
+			shiplocation.x += -5f;
+			shiplocation.y += .05f;
 			return shiplocation;
 		}
 		/// <summary>
@@ -85,9 +105,12 @@ namespace InstantLoot
 		{
 			GameObject ship = GameObject.Find("/Environment/HangarShip");
 			Vector3 shiplocation = new(ship.transform.position.x, ship.transform.position.y, ship.transform.position.z);
-			shiplocation.z += -6f;
-			shiplocation.x += 0f;
-			shiplocation.y += 1.66f;
+			//shiplocation.z += -6f;
+			//shiplocation.x += 0f;
+			//shiplocation.y += 1.66f;
+			shiplocation.z += 1.5f;
+			shiplocation.x += -5f;
+			shiplocation.y += .05f;
 			return shiplocation;
 		}
 
@@ -108,7 +131,7 @@ namespace InstantLoot
 
 			ResetObjectPosition(obj, GetShipCenterLocation(), obj.transform.rotation);
 
-			obj.EquipItem();
+			//obj.EquipItem();
 			RoundManager.Instance.scrapCollectedInLevel += obj.scrapValue;
 			StartOfRound.Instance.gameStats.allPlayerStats[localPlayerController.playerClientId].profitable += obj.scrapValue;
 			RoundManager.Instance.CollectNewScrapForThisRound(obj);
@@ -162,7 +185,7 @@ namespace InstantLoot
 		private static void ResetObjectPosition(GrabbableObject gObj, Vector3 placementPosition, Quaternion placementRotation)
 		{
 			gObj.gameObject.transform.SetPositionAndRotation(placementPosition, placementRotation);
-
+			NetworkTransform(gObj, placementPosition);
 
 			gObj.hasHitGround = false;
 			gObj.startFallingPosition = gObj.transform.position;
@@ -284,10 +307,10 @@ namespace InstantLoot
 			}
 
 			// calculate a z offset that places objects on different z location by type
-			float objectTypeZOffset = 3f / objectNames.Count;
+			float objectTypeZOffset = 2.75f / objectNames.Count;
 			if (twoHanded)
 			{
-				objectTypeZOffset = 4.5f / objectNames.Count;
+				objectTypeZOffset = 3.5f / objectNames.Count;
 			}
 			int itemCounter = 0;
 
@@ -311,7 +334,7 @@ namespace InstantLoot
 
 					// Two handed objects can be moved closer to the wall
 					if (twoHanded)
-						placementPosition.z += 1f;
+						placementPosition.z += 0.5f;
 
 					foreach (var obj in objectsOfType)
 					{
@@ -333,7 +356,7 @@ namespace InstantLoot
 						if (!SameLocation(obj.transform.position, placementPosition))
 						{
 							obj.gameObject.transform.SetPositionAndRotation(placementPosition, obj.transform.rotation);
-
+							NetworkTransform(obj, placementPosition);
 							obj.hasHitGround = false;
 							obj.startFallingPosition = obj.transform.position;
 							if (obj.transform.parent != null)

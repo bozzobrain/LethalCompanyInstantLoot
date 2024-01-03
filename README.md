@@ -8,6 +8,10 @@
 - Recall items back to the ship automatically by pressing 'l' when on the ship after selling some of your loot.
 - Keybinding can be modified in the cfg file
 
+# Changes
+- V2.0.0
+  - Made the system networking friendly
+
 # Installation
 1. Install BepInEx
 2. Run game once with BepInEx installed to generate folders/files
