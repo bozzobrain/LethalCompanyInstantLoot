@@ -9,6 +9,8 @@
 - Keybinding can be modified in the cfg file
 
 # Changes
+- V2.1.0
+  - More updates for better networking
 - V2.0.0
   - Made the system networking friendly
 

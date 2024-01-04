@@ -13,6 +13,7 @@ using Unity.Netcode.Components;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UIElements;
+using static InstantLoot.NetworkFunctions;
 using Object = UnityEngine.Object;
 
 namespace InstantLoot
@@ -27,16 +28,52 @@ namespace InstantLoot
 		public static void OnLocalPlayerConnect(PlayerControllerB __instance)
 		{
 			localPlayerController = __instance;
+			if (localPlayerController.IsClient)
+				NetworkManagerInit();
+		}
+		public static void MakeObjectFallRpc(GrabbableObject obj, Vector3 placementPosition)
+		{
+			var pni = GetNetworkingObjectManager();
+
+			if (pni != null)
+			{
+				InstantLoot.Log($"NetworkingObjectManager - Network behavior found {pni.name}");
+				pni.RunClientRpc(obj.NetworkObject, placementPosition);
+			}
+			else
+			{
+				InstantLoot.Log($"NetworkingObjectManager not found ");
+			}
 		}
 
-		private static void NetworkTransform(GrabbableObject obj, Vector3 placementPosition)
+		public static NetworkingObjectManager GetNetworkingObjectManager()
 		{
+			GameObject terminal = GameObject.Find("/Environment/HangarShip/Terminal");
+			if (terminal != null)
+			{
+				InstantLoot.Log($"Terminal found {terminal.name}");
+				return terminal.GetComponentInChildren<NetworkingObjectManager>();
+			}
+			return null;
+		}
 
-			var weightBefore = localPlayerController.carryWeight;
-			GameObject ship = GameObject.Find("/Environment/HangarShip");
-			localPlayerController.PlaceGrabbableObject(ship.transform, placementPosition, false, obj);			
-			localPlayerController.PlaceObjectServerRpc(obj.gameObject.GetComponent<NetworkObject>(), ship.GetComponent<NetworkObject>(), placementPosition, false);
-			localPlayerController.carryWeight = weightBefore;
+		public static void NetworkManagerInit()
+		{
+			InstantLoot.Log("Registering named message");
+			NetworkManager.Singleton.CustomMessagingManager.RegisterNamedMessageHandler("MakeObjectFall", (senderClientId, reader) =>
+			{
+				if (senderClientId != localPlayerController.playerClientId)
+				{
+					reader.ReadValueSafe(out NetworkObjectReference value, default(FastBufferWriter.ForNetworkSerializable));
+					reader.ReadValueSafe(out Vector3 value3);
+					if (value.TryGet(out var networkObject))
+					{
+						GrabbableObject component = networkObject.GetComponent<GrabbableObject>();
+
+						GetNetworkingObjectManager().MakeObjectFall(component, value3);
+					}
+				}
+			});
 		}
 		/// <summary>
 		/// Moves all loot to the ship if you are in it. 
@@ -47,20 +84,16 @@ namespace InstantLoot
 		{
 			if (localPlayerController.isInHangarShipRoom)
 			{
-				bool objectOutSideShip = false;
 				var allScrap = FindAllScrapOnMap();
 				foreach (var obj in allScrap)
 				{
 					if (!obj.isInShipRoom)
 					{
 						MoveItemToShip(obj);
-						objectOutSideShip = true;
 					}
 				}
-				if (!objectOutSideShip)
-				{
-					OrganizeShipLoot();
-				}
+				OrganizeShipLoot();
+
 			}
 			else
 			{
@@ -69,34 +102,12 @@ namespace InstantLoot
 				{
 					Vector3 playerPosition = localPlayerController.gameplayCamera.transform.position;
 					Vector3 targetPosition = new(playerPosition.x - 1f, playerPosition.y + 0.2f, playerPosition.z);
-					ResetObjectPosition(obj, targetPosition, obj.transform.rotation);
+
+					MakeObjectFallRpc(obj, targetPosition);
 				}
 			}
 		}
-
-		/// <summary>
-		/// Get position inside of the ship for object placement.
-		/// </summary>
-		/// <returns>Vector3 position of ship to place objects.</returns>
-		/// 
-		//private static Vector3 GetShipCenterLocationOrganize()
-		//{
-		//	GameObject ship = GameObject.Find("/Environment/HangarShip");
-		//	Vector3 shiplocation = new(ship.transform.position.x, ship.transform.position.y, ship.transform.position.z);
-		//	shiplocation.z += -5.75f;
-		//	shiplocation.x += -4.85f;
-		//	shiplocation.y += 1.66f;
-		//	return shiplocation;
-		//}
-		private static Vector3 GetShipCenterLocationOrganize()
-		{
-			GameObject ship = GameObject.Find("/Environment/HangarShip");
-			Vector3 shiplocation = new(ship.transform.position.x, ship.transform.position.y, ship.transform.position.z);
-			shiplocation.z += 1.5f;
-			shiplocation.x += -5f;
-			shiplocation.y += .05f;
-			return shiplocation;
-		}
+	
 		/// <summary>
 		/// Get position inside of the ship for object placement.
 		/// </summary>
@@ -104,13 +115,10 @@ namespace InstantLoot
 		private static Vector3 GetShipCenterLocation()
 		{
 			GameObject ship = GameObject.Find("/Environment/HangarShip");
-			Vector3 shiplocation = new(ship.transform.position.x, ship.transform.position.y, ship.transform.position.z);
-			//shiplocation.z += -6f;
-			//shiplocation.x += 0f;
-			//shiplocation.y += 1.66f;
-			shiplocation.z += 1.5f;
-			shiplocation.x += -5f;
-			shiplocation.y += .05f;
+			Vector3 shiplocation = ship.transform.position;
+			shiplocation.z += -5.75f;
+			shiplocation.x += -4.85f;
+			shiplocation.y += 1.66f;
 			return shiplocation;
 		}
 
@@ -125,17 +133,14 @@ namespace InstantLoot
 			obj.hasBeenHeld = true;
 			obj.isInFactory = false;
 
-			obj.transform.SetParent(ship.transform);
-			obj.OnBroughtToShip();
-			obj.isHeld = false;
 
-			ResetObjectPosition(obj, GetShipCenterLocation(), obj.transform.rotation);
-
-			//obj.EquipItem();
+			obj.isInShipRoom = true;
 			RoundManager.Instance.scrapCollectedInLevel += obj.scrapValue;
 			StartOfRound.Instance.gameStats.allPlayerStats[localPlayerController.playerClientId].profitable += obj.scrapValue;
 			RoundManager.Instance.CollectNewScrapForThisRound(obj);
-			obj.isInShipRoom = true;
+			obj.transform.SetParent(ship.transform);
+			obj.OnBroughtToShip();
+			MakeObjectFallRpc(obj, GetShipCenterLocation());
 			return;
 		}
 
@@ -176,24 +181,6 @@ namespace InstantLoot
 				}
 			}
 			return scrapList;
-		}
-
-		/// <summary>
-		/// Reset a grabbable object location and rotation.
-		/// </summary>
-		/// 
-		private static void ResetObjectPosition(GrabbableObject gObj, Vector3 placementPosition, Quaternion placementRotation)
-		{
-			gObj.gameObject.transform.SetPositionAndRotation(placementPosition, placementRotation);
-			NetworkTransform(gObj, placementPosition);
-
-			gObj.hasHitGround = false;
-			gObj.startFallingPosition = gObj.transform.position;
-			if (gObj.transform.parent != null)
-			{
-				gObj.startFallingPosition = gObj.transform.parent.InverseTransformPoint(gObj.startFallingPosition);
-			}
-			gObj.FallToGround(false);
 		}
 
 		/// <summary>
@@ -329,7 +316,7 @@ namespace InstantLoot
 				if (firstObjectOfType != null)
 				{
 					// Find placement location adjust z by small amount for each type of object
-					var placementPosition = GetShipCenterLocationOrganize();
+					var placementPosition = GetShipCenterLocation();
 					placementPosition.z -= objectTypeZOffset * itemCounter;
 
 					// Two handed objects can be moved closer to the wall
@@ -343,27 +330,19 @@ namespace InstantLoot
 							continue;
 
 						// Shift item position by scrap value (higher value is closer to door)
-						placementPosition.x = GetShipCenterLocationOrganize().x + GetXOffsetFromScrapValue(obj) + twoHandedOffset;
+						placementPosition.x = GetShipCenterLocation().x + GetXOffsetFromScrapValue(obj) + twoHandedOffset;
 
 						// If we already placed an item here, move it by a small amount to offset common values
 						while (offsetLocations.Contains(placementPosition.x))
 						{
 							placementPosition.x += 0.1f;
-						}
+						} 
 						offsetLocations.Add(placementPosition.x);
 
 						// Move the object if position needs adjusted
 						if (!SameLocation(obj.transform.position, placementPosition))
 						{
-							obj.gameObject.transform.SetPositionAndRotation(placementPosition, obj.transform.rotation);
-							NetworkTransform(obj, placementPosition);
-							obj.hasHitGround = false;
-							obj.startFallingPosition = obj.transform.position;
-							if (obj.transform.parent != null)
-							{
-								obj.startFallingPosition = obj.transform.parent.InverseTransformPoint(obj.startFallingPosition);
-							}
-							obj.FallToGround(false);
+							MakeObjectFallRpc(obj, placementPosition);
 						}
 					}
 					itemCounter++;
