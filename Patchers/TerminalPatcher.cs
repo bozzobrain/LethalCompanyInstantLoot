@@ -1,7 +1,5 @@
-﻿using HarmonyLib;
-using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using InstantLoot.Networking;
+using HarmonyLib;
 
 namespace InstantLoot.Patchers
 {

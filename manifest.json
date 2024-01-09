@@ -1,8 +1,8 @@
 {
   "name": "InstantLoot",
-  "version_number": "2.1.0",
-  "website_url": "https://github.com/bozzobrain/LethalCompanyInstantLoot/releases",
-  "description": "Easily teleport loot to the ship and to you at the company.",
+  "version_number": "2.1.1",
+  "website_url": "https://github.com/bozzobrain/LethalCompanyInstantLoot",
+  "description": "Steal all loot from a map. Also can help pull loot out from the ship at the company. If you want only quality of life mod, switch your usage to my FireSale mod. ",
   "dependencies": [
     "BepInEx-BepInExPack-5.4.2100"
   ]
